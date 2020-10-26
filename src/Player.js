@@ -159,13 +159,13 @@ class Player {
      *          // Search for tracks
      *          let tracks = await client.player.searchTracks(args[0]);
      *          // Sends an embed with the 10 first songs
-     *          if(tracks.length > 10) tracks = tracks.substr(0, 10);
+     *          if(tracks.length > 10) tracks = tracks.slice(0, 10);
      *          const embed = new Discord.MessageEmbed()
      *          .setDescription(tracks.map((t, i) => `**${i+1} -** ${t.name}`).join("\n"))
      *          .setFooter("Send the number of the track you want to play!");
      *          message.channel.send(embed);
      *          // Wait for user answer
-     *          await message.channel.awaitMessages((m) => m.content > 0 && m.content < 10, { max: 1, time: 20000, errors: ["time"] }).then(async (answers) => {
+     *          await message.channel.awaitMessages((m) => m.content > 0 && m.content < 11, { max: 1, time: 20000, errors: ["time"] }).then(async (answers) => {
      *              let index = parseInt(answers.first().content, 10);
      *              track = track[index-1];
      *              // Then play the song
@@ -203,11 +203,12 @@ class Player {
             if (matchYoutubeURL) {
                 query = matchYoutubeURL[1]
             }
-            ytsr(query, (err, results) => {
+            ytsr(query).then((results) => {
                 if (results.items.length < 1) return resolve([])
-                if (err) return resolve([])
                 const resultsVideo = results.items.filter((i) => i.type === 'video')
                 resolve(allResults ? resultsVideo.map((r) => new Track(r, null, null)) : [new Track(resultsVideo[0], null, null)])
+            }).catch(() => {
+                return resolve([])
             })
         })
     }
@@ -385,6 +386,7 @@ class Player {
             // Stop the dispatcher
             queue.stopped = true
             queue.tracks = []
+            if (queue.stream) queue.stream.destroy()
             queue.voiceConnection.dispatcher.end()
             // Resolve
             resolve()
@@ -761,7 +763,9 @@ class Player {
         const queue = this.queues.find((g) => g.guildID === guildID)
         if (!queue) return
         // Stream time of the dispatcher
-        const currentStreamTime = queue.voiceConnection.dispatcher.streamTime + queue.additionalStreamTime
+        const currentStreamTime = queue.voiceConnection.dispatcher
+            ? queue.voiceConnection.dispatcher.streamTime + queue.additionalStreamTime
+            : 0
         // Total stream time
         const totalTime = queue.playing.durationMS
         // Stream progress
